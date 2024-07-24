@@ -1,0 +1,109 @@
+import UserVerifiedInfoType from "../../../types/UserVerifiedInfoType";
+import {
+  UserVerifiedInfo,
+  DocumentVerification,
+  Company,
+} from "../../../models";
+
+import {
+  GraphQLList as List,
+  GraphQLString as StringType,
+  GraphQLInt as IntType,
+  GraphQLNonNull as NonNull,
+  GraphQLBoolean as BooleanType,
+} from "graphql";
+
+const DocumentManagement = {
+  type: UserVerifiedInfoType,
+
+  args: {
+    userId: { type: StringType },
+    isIdVerification: { type: BooleanType },
+  },
+
+  async resolve({ request }, { userId, isIdVerification }) {
+    if (request.user && request.user.admin == true) {
+      let isDocumentUpdate = false;
+
+      const isDocumentAvailable = await DocumentVerification.findOne({
+        where: {
+          userId,
+        },
+      });
+      if (!isDocumentAvailable)
+        return {
+          status: "failed",
+          errorMessage: "No such documents found. Please try again.",
+        };
+
+      const updateStatus = await DocumentVerification.update(
+        {
+          documentStatus: isIdVerification ? "approved" : "pending",
+        },
+        {
+          where: {
+            userId,
+          },
+        }
+      );
+
+      const updateCompanyStatus = await Company.update(
+        {
+          status: isIdVerification ? "approved" : "rejected",
+        },
+        {
+          where: {
+            userId,
+          },
+        }
+      );
+
+      if (!updateStatus || !updateCompanyStatus)
+        return {
+          status: "failed",
+          errorMessage: "Something went wrong. Please try again.",
+        };
+
+      const updateDocumentManagement = await UserVerifiedInfo.update(
+        {
+          isIdVerification,
+        },
+        {
+          where: {
+            userId,
+          },
+        }
+      ).then(function(instance) {
+        // Check if any rows are affected
+        if (instance > 0) {
+          isDocumentUpdate = true;
+        }
+      });
+
+      if (isDocumentUpdate) {
+        return {
+          status: "success",
+        };
+      } else {
+        return {
+          status: "failed",
+        };
+      }
+    } else {
+      return {
+        status: "failed",
+      };
+    }
+  },
+};
+
+export default DocumentManagement;
+
+/*
+
+ mutation DocumentManagement ($id: String, $isIdVerification: Boolean){
+                    DocumentManagement(id: $id, isIdVerification: $isIdVerification){
+                        status
+    }
+}
+*/

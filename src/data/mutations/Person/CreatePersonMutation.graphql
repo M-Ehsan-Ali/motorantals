@@ -1,0 +1,25 @@
+mutation CreatePerson(
+  $name: String!
+  $email: String!
+  $phone: String!
+  $line: String
+  $address: String!
+  $companyId: Int!
+) {
+  CreatePerson(
+    name: $name
+    email: $email
+    phone: $phone
+    address: $address
+    line: $line
+    companyId: $companyId
+  ) {
+    id
+    name
+    email
+    phone
+#    line
+    address
+    companyId
+  }
+}

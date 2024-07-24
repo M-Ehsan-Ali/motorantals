@@ -1,0 +1,60 @@
+@import '../admin-common.css';
+
+
+.backdrop {
+    width: 100%;
+    height: 100vh;
+
+    display: flex;
+    justify-content: center;
+
+    backdrop-filter: blur(2px);
+
+    position: absolute;
+    top: 0;
+    left: 0;
+    z-index: 10;
+}
+.modal {
+    margin-top: 40px;
+
+    width: 80%;
+    height: 80%;
+    padding: 40px;
+    background: transparent linear-gradient(169deg, #F0F5FE 0%, #FFF7F7 100%) 0% 0% no-repeat padding-box;
+    position: relative;
+
+    border-radius: 4px;
+    display: flex;
+    justify-content: center;
+    gap: 8px;
+
+    flex-wrap: wrap;
+    overflow-y: scroll;
+}
+
+.closeColor {
+    color: #0009;
+    font-size: 36px;
+    position: absolute;
+    display: block;
+    top: 15px;
+    padding: 0;
+    right: 22px;
+    z-index: 8;
+}
+
+.links {
+    text-decoration: underline;
+}
+
+.links:hover {
+    cursor: pointer;
+}
+
+.imgContainer{
+    width: 90%;
+}
+.img{
+    width: 100%;
+}

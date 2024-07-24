@@ -1,0 +1,1027 @@
+import moment from "moment";
+import PropTypes from "prop-types";
+import React, { Component } from "react";
+import { FormattedMessage, injectIntl } from "react-intl";
+
+// Redux
+import { connect } from "react-redux";
+
+// Helper
+import { convert } from "../../../helpers/currencyConvertion";
+
+// Redux Form
+import { change, Field, formValueSelector, reduxForm, reset } from "redux-form";
+
+import { compose, gql, graphql } from "react-apollo";
+
+import { FormControl, FormGroup } from "react-bootstrap";
+
+import { toastr } from "react-redux-toastr";
+
+import cx from "classnames";
+import withStyles from "isomorphic-style-loader/lib/withStyles";
+import cs from "../../commonStyle.css";
+import s from "./Payment.css";
+
+// Helpers
+import validate from "./validate";
+
+// Component
+import Avatar from "../../Avatar";
+import Link from "../../Link";
+import Loader from "../../Loader";
+import DriverInfo from "./DriverInfo";
+import HouseRules from "./HouseRules";
+
+// Locale
+import messages from "../../../locale/messages";
+
+import { makePayment } from "../../../actions/booking/makePayment";
+import { processCardAction } from "../../../actions/PaymentIntent/processCardAction";
+import { COMMON_TEXT_COLOR } from "../../../constants/index";
+
+import Omise from "omise";
+import OpnPaymentsCard from "./OpnPaymentsCard";
+
+// import { Navigat } from "react-rouer-dom";
+
+const createOptions = (isRTLLocale) => {
+  return {
+    style: {
+      base: {
+        color: COMMON_TEXT_COLOR,
+        fontWeight: 400,
+        fontFamily: "inherit",
+        textAlign: isRTLLocale ? "right" : "left",
+        fontSize: "16px",
+        fontSmoothing: "antialiased",
+        ":focus": {
+          color: COMMON_TEXT_COLOR,
+        },
+
+        "::placeholder": {
+          color: "#aaa",
+        },
+
+        ":focus::placeholder": {
+          color: "#aaa",
+        },
+      },
+      invalid: {
+        color: "#303238",
+        ":focus": {
+          color: COMMON_TEXT_COLOR,
+        },
+        "::placeholder": {
+          color: "#aaa",
+        },
+      },
+    },
+  };
+};
+
+class PaymentForm extends Component {
+  static propTypes = {
+    houseRules: PropTypes.arrayOf(
+      PropTypes.shape({
+        listsettings: PropTypes.shape({
+          itemName: PropTypes.string.isRequired,
+        }),
+      })
+    ),
+    hostDisplayName: PropTypes.string.isRequired,
+    allowedPersonCapacity: PropTypes.number.isRequired,
+    initialValues: PropTypes.shape({
+      listId: PropTypes.number.isRequired,
+      listTitle: PropTypes.string.isRequired,
+      hostId: PropTypes.string.isRequired,
+      guestId: PropTypes.string.isRequired,
+      checkIn: PropTypes.object.isRequired,
+      checkOut: PropTypes.object.isRequired,
+      guests: PropTypes.number.isRequired,
+      basePrice: PropTypes.number.isRequired,
+      delivery: PropTypes.number.isRequired,
+      currency: PropTypes.string.isRequired,
+      weeklyDiscount: PropTypes.number,
+      monthlyDiscount: PropTypes.number,
+      // paymentType: PropTypes.number,
+      paymentMethod: PropTypes.string,
+    }).isRequired,
+    paymentCurrencyList: PropTypes.arrayOf(
+      PropTypes.shape({
+        id: PropTypes.number.isRequired,
+        symbol: PropTypes.string.isRequired,
+        isEnable: PropTypes.bool.isRequired,
+        isPayment: PropTypes.bool.isRequired,
+      })
+    ),
+    paymentLoading: PropTypes.bool,
+    formatMessage: PropTypes.any,
+  };
+
+  static defaultProps = {
+    paymentCurrencyList: [],
+    paymentLoading: false,
+  };
+
+  constructor(props) {
+    super(props);
+    this.state = {
+      paymentStatus: 2,
+      load: true,
+      redirectUrl: null,
+    };
+    this.renderpaymentCurrencies = this.renderpaymentCurrencies.bind(this);
+    this.handleClick = this.handleClick.bind(this);
+    this.handleSubmit = this.handleSubmit.bind(this);
+    this.handlePayment = this.handlePayment.bind(this);
+  }
+
+  //   const { loading, createTokenPromise } = useOmise({
+  //   publicKey: "pkey_test_5xn33w5ko66q130ssr7",
+  // });
+
+  componentDidMount() {
+    const script = document.createElement("script");
+
+    script.src = "https://cdn.omise.co/omise.js";
+    script.defer = true;
+
+    document.body.appendChild(script);
+  }
+
+  componentDidUpdate(prevProps, prevState) {
+    const { locale } = this.props.intl;
+    const { locale: prevLocale } = prevProps.intl;
+
+    if (locale !== prevLocale) {
+      this.setState({ load: false });
+      clearTimeout(this.loadSync);
+      this.loadSync = null;
+      this.loadSync = setTimeout(() => this.setState({ load: true }), 1);
+    }
+  }
+
+  UNSAFE_componentWillReceiveProps(nextProps) {
+    const {
+      getAllPayments: { getPaymentMethods },
+      change,
+    } = nextProps;
+    if (getPaymentMethods && getPaymentMethods.length == 1) {
+      this.setState({
+        paymentStatus: getPaymentMethods[0].id,
+      });
+      change("paymentType", getPaymentMethods[0].id);
+    }
+  }
+
+  renderFormControl = ({
+    input,
+    label,
+    type,
+    placeholder,
+    meta: { touched, error },
+    className,
+    maxLength,
+  }) => {
+    const { formatMessage } = this.props.intl;
+    return (
+      <FormGroup className={cx("inputFocusColorNone", cs.spaceBottom2)}>
+        <FormControl
+          {...input}
+          placeholder={placeholder}
+          type={type}
+          className={className}
+          maxLength={maxLength}
+        />
+        {touched && error && (
+          <span className={cs.errorMessage}>{formatMessage(error)}</span>
+        )}
+      </FormGroup>
+    );
+  };
+
+  renderFormControlSelect = ({
+    input,
+    label,
+    meta: { touched, error },
+    children,
+    className,
+    disabled,
+  }) => {
+    const { formatMessage } = this.props.intl;
+    return (
+      <FormGroup className={cs.spaceBottom3}>
+        <FormControl
+          disabled={disabled}
+          componentClass="select"
+          {...input}
+          className={className}
+        >
+          {children}
+        </FormControl>
+        {touched && error && (
+          <span className={cs.errorMessage}>{formatMessage(error)}</span>
+        )}
+      </FormGroup>
+    );
+  };
+
+  renderFormControlTextArea = ({
+    input,
+    label,
+    meta: { touched, error },
+    children,
+    className,
+  }) => {
+    const { formatMessage } = this.props.intl;
+    return (
+      <FormGroup className={cs.noMargin}>
+        <FormControl
+          {...input}
+          className={className}
+          componentClass="textarea"
+          placeholder={label}
+          rows={"6"}
+        >
+          {children}
+        </FormControl>
+        {touched && error && (
+          <span className={cs.errorMessage}>{formatMessage(error)}</span>
+        )}
+      </FormGroup>
+    );
+  };
+
+  renderGuests(personCapacity) {
+    let rows = [];
+    for (let i = 1; i <= personCapacity; i++) {
+      rows.push(
+        <option key={i} value={i}>
+          {i} {i > 1 ? "guests" : "guest"}
+        </option>
+      );
+    }
+    return rows;
+  }
+
+  renderpaymentCurrencies() {
+    const { paymentCurrencyList } = this.props;
+    let rows = [];
+
+    if (paymentCurrencyList != null && paymentCurrencyList.length > 0) {
+      paymentCurrencyList.map((item, index) => {
+        if (item.isEnable && item.isPayment) {
+          rows.push(
+            <option key={index} value={item.symbol}>
+              {item.symbol}
+            </option>
+          );
+        }
+      });
+    }
+    return rows;
+  }
+
+  handleClick() {
+    const { dispatch } = this.props;
+    dispatch(reset("BookingForm"));
+  }
+
+  handleSubmit = async (values, dispatch) => {
+    const {
+      stripe,
+      processCardAction,
+      currency,
+      baseCurrency,
+      paymentCurrencyList,
+      currentCurrency,
+      rates,
+    } = this.props;
+    const { formatMessage } = this.props.intl;
+
+    let paymentType = values.paymentMethodId,
+      paymentCurrency,
+      month;
+    let monthValue, dateValue, dateOfBirth;
+    let today, birthDate, age, monthDifference, dobDate;
+    let dateOfMonth = Number(values.month) + 1;
+
+    dobDate = values.year + "/" + dateOfMonth + "/" + values.day;
+    paymentCurrency = values.paymentType == 1 ? values.paymentCurrency : null;
+    month = values.month ? Number(values.month) + 1 : null;
+    monthValue = Number(values.month) > 8 ? Number(month) : "0" + month;
+    dateValue = values.day > 9 ? values.day : "0" + values.day;
+    dateOfBirth = monthValue + "-" + dateValue + "-" + values.year;
+    today = new Date();
+    birthDate = new Date(dobDate);
+    age = today.getFullYear() - birthDate.getFullYear();
+    monthDifference = today.getMonth() - birthDate.getMonth();
+
+    if (values.year) {
+      if (
+        monthDifference < 0 ||
+        (monthDifference === 0 && today.getDate() < birthDate.getDate())
+      )
+        age--;
+      if (age < 18) {
+        toastr.error(
+          formatMessage(messages.updateProfileFail),
+          formatMessage(messages.errorAgeRestrictions)
+        );
+        return false;
+      }
+    }
+
+    let query = `query checkReservation ($checkIn: String,$checkOut: String,$listId: Int ){
+    checkReservation(checkIn: $checkIn, checkOut:$checkOut, listId:$listId ){
+      id
+      listId
+      hostId
+      guestId
+      checkIn
+      checkOut
+      status
+    }
+  }`;
+
+    const params = {
+      listId: values.listId,
+      checkIn: values.checkIn,
+      checkOut: values.checkOut,
+    };
+
+    const resp = await fetch("/graphql", {
+      method: "post",
+      headers: {
+        Accept: "application/json",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        query,
+        variables: params,
+      }),
+      credentials: "include",
+    });
+
+    const { data } = await resp.json();
+
+    console.log("PAYMENT METHOD:", values.paymentMethod);
+
+    if (
+      data &&
+      data.checkReservation &&
+      data.checkReservation.status == "200"
+    ) {
+      let msg = "",
+        paymentMethodId,
+        createPaymentMethod;
+
+      const omise = Omise({
+        // TODO: move to .env
+        publicKey: "pkey_test_60bpe72e141odnwbuaq",
+        secretKey: "skey_test_60bpe73hfeoo038mdqq",
+      });
+      let tokenParameters;
+      if (values.paymentMethod === "creditCard") {
+        const amount = convert(
+          this.props.baseCurrency,
+          this.props.rates,
+          values.total + values.guestServiceFee + values.securityDeposit,
+          values.currency,
+          "THB"
+        );
+
+        tokenParameters = {
+          name: `${values.firstName} ${values.lastName}`,
+          number: values.creditCardNumber,
+          expiration_month: values.creditCardMonth,
+          expiration_year: values.creditCardYear,
+          security_code: values.creditCardCvv,
+          amount: Math.ceil(amount),
+          currency: "THB",
+          email: values.guestEmail,
+        };
+
+        await omise.tokens.create(
+          { card: tokenParameters },
+          async (error, token) => {
+            if (token) {
+              const response = await dispatch(
+                makePayment(
+                  values.listId,
+                  values.listTitle,
+                  values.hostId,
+                  values.guestId,
+                  values.checkIn,
+                  values.checkOut,
+                  values.guests,
+                  values.message,
+                  values.basePrice,
+                  values.delivery,
+                  values.currency,
+                  values.discount,
+                  values.discountType,
+                  values.guestServiceFee,
+                  values.hostServiceFee,
+                  values.total,
+                  values.bookingType,
+                  values.guestEmail,
+                  values.bookingSpecialPricing,
+                  values.isSpecialPriceAssigned,
+                  values.isSpecialPriceAverage,
+                  values.dayDifference,
+                  values.startTime,
+                  values.endTime,
+                  values.licenseNumber,
+                  values.firstName,
+                  values.middleName,
+                  values.lastName,
+                  dateOfBirth,
+                  values.country,
+                  values.securityDeposit,
+                  values.paymentMethod,
+                  values.paymentMethodId,
+                  token.id
+                )
+              );
+
+              if (response.status === 200) {
+                if (response.redirectUrl) {
+                  window.location.href = response.redirectUrl;
+                }
+              }
+            } else {
+              if (error) {
+                msg = error.message;
+                toastr.error(formatMessage(messages.errorOops), msg);
+              }
+            }
+          }
+        );
+      } else if (values.paymentMethod === "googlepay") {
+        const amount = convert(
+          this.props.baseCurrency,
+          this.props.rates,
+          values.total + values.guestServiceFee + values.securityDeposit,
+          values.currency,
+          this.props.currentCurrency
+        );
+
+        tokenParameters = {
+          method: "googlepay",
+          data: `{\"signature\":\"MEQCIA+wGZttxT13yz599zQjYugoz5kClNSmVa39vKv6ZOenAiARRtHQ0aYSrfd3oWhB\/ZtEeJs3ilT\/J0pYz1EWnzU2fw\\u003d\\u003d\",\"intermediateSigningKey\":{\"signedKey\":\"{\\\"keyValue\\\":\\\"MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEev+pVoUgtoS+y8Ecz3c72OFBD3d74XJOcnRxVmCV+2TJTW1g4d0UhDkhHeURhHQNvJPyBFHfYIUUj\/EYhYAzgQ\\\\u003d\\\\u003d\\\",\\\"keyExpiration\\\":\\\"1647856171825\\\"}\",\"signatures\":[\"MEYCIQClXfVcil7qaG2btVbyzf6x1\/MqCTbbJM\/tGN4iME4M9wIhANL53daWJHdDPpKxR3M\/Jis4WPVb093PW7fChj\/gCQUS\"]},\"protocolVersion\":\"ECv2\",\"signedMessage\":\"{\\\"encryptedMessage\\\":\\\"4JighTc0b1HhRQu+NgQN1XQWWOeB4YyR5cMFi8Vu3FeWHAjPtGs3LjrdpWhJhWekURzD6BZCbg1xakYvAMsahoTyUzDLtNpKmlglFpVjBSSYkPKFT6xovTKsWS7xC\/x9AvJsATtotwN8TTiP3+1dXtLLFClnCTkg9vEvChvXq0FwnrUOBtMiWukBY84R2rpzqNuZoh6gdvWHgPP6RczhtERg+kqKdd4\/UnKE8ElzOWYDmZoJvFhxU\/O97vHW1ohOe8ut94bxiPH6DB82Ec87Mu\/oArsGMpsnFVsWzIcLX+q+KayGRbKxPQzV726fO7GipG94KiF7YfCk1r+D+jkFR7x0ev6l+XRoTz+PKIlhrcn3DEYJudJAP\/Xh2kj\/csnLn4XdKV0aZ5Ua3IauA4fQl80pAo9foujiRGwagHHOfnp6iMjA\/CdG9SNQS3eUdsxtlJKPoK4rtv7cwISNQvoCWMv748YvV3f+LEOWf8couRgrxPCPbk1vO8TfNOgSAjULzRs+C1xy6\/j5aZU46PpomEClDWrujMAcDVqCnExTx2QE9IAb4n02V6UxWv8Dgqv5TsRKjPe7WSCO0+jRWAvs6wBBUbFPHvEe4do+rQ\\\\u003d\\\\u003d\\\",\\\"ephemeralPublicKey\\\":\\\"BGJhfH3jWMmZtIALmYr7fWxYSNSCFoAT9MCOcbCZdO3LmP6njpGk9LISmr+H1Wk9XUZuMvNQmMHE+yFzW\/sA5lg\\\\u003d\\\",\\\"tag\\\":\\\"d9a6aVaoIEQm+bTjd5M2HL7+OeIup0Jb6rM1CN7v3NQ\\\\u003d\\\"}\"}`,
+          billing_name: "John Doe",
+          billing_street1: "1600 Amphitheatre Parkway",
+        };
+
+        await omise.sources.create(tokenParameters, function(error, source) {
+          if (source) {
+            dispatch(
+              makePayment(
+                values.listId,
+                values.listTitle,
+                values.hostId,
+                values.guestId,
+                values.checkIn,
+                values.checkOut,
+                values.guests,
+                values.message,
+                values.basePrice,
+                values.delivery,
+                values.currency,
+                values.discount,
+                values.discountType,
+                values.guestServiceFee,
+                values.hostServiceFee,
+                values.total,
+                values.bookingType,
+                values.guestEmail,
+                values.bookingSpecialPricing,
+                values.isSpecialPriceAssigned,
+                values.isSpecialPriceAverage,
+                values.dayDifference,
+                values.startTime,
+                values.endTime,
+                values.licenseNumber,
+                values.firstName,
+                values.middleName,
+                values.lastName,
+                dateOfBirth,
+                values.country,
+                values.securityDeposit,
+                values.paymentMethod,
+                values.paymentMethodId,
+                source.id
+              )
+            );
+          } else {
+            if (error) {
+              msg = error.message;
+              toastr.error(formatMessage(messages.errorOops), msg);
+            }
+          }
+        });
+      } else {
+        // TODO: this is where we make the payment by: PromyPay, Alipay, Mobile Banking: Bay, BBL, KBank, KTB, SCB
+        const amount = convert(
+          this.props.baseCurrency,
+          this.props.rates,
+          values.total + values.guestServiceFee + values.securityDeposit,
+          // TODO: currency
+          // values.currency,
+          "THB",
+          // this.props.currentCurrency
+          "THB"
+        );
+
+        console.log("AMOUNT:", amount);
+
+        tokenParameters = {
+          type: values.paymentMethod,
+          bank: values.paymentMethod,
+          name: `${values.firstName} ${values.lastName}`,
+          amount: Math.ceil(amount),
+          // TODO: currency
+          // currency: this.props.currentCurrency,
+          currency: "THB",
+          email: values.guestEmail,
+        };
+
+        await omise.sources.create(tokenParameters, async (error, source) => {
+          if (source) {
+            console.log("SOURCE:", source);
+
+            const response = await dispatch(
+              makePayment(
+                values.listId,
+                values.listTitle,
+                values.hostId,
+                values.guestId,
+                values.checkIn,
+                values.checkOut,
+                values.guests,
+                values.message,
+                values.basePrice,
+                values.delivery,
+                // values.currency,
+                "THB",
+                values.discount,
+                values.discountType,
+                values.guestServiceFee,
+                values.hostServiceFee,
+                values.total,
+                values.bookingType,
+                values.guestEmail,
+                values.bookingSpecialPricing,
+                values.isSpecialPriceAssigned,
+                values.isSpecialPriceAverage,
+                values.dayDifference,
+                values.startTime,
+                values.endTime,
+                values.licenseNumber,
+                values.firstName,
+                values.middleName,
+                values.lastName,
+                dateOfBirth,
+                values.country,
+                values.securityDeposit,
+                values.paymentMethod,
+                values.paymentMethodId,
+                source.id,
+                amount
+              )
+            );
+
+            console.log("RESPONSE:", response);
+
+            if (response) {
+              window.location.href = response.redirectUrl;
+            }
+          } else {
+            console.log(error);
+            if (error) {
+              msg = error.message;
+              toastr.error(formatMessage(messages.errorOops), msg);
+            }
+          }
+        });
+      }
+    } else {
+      toastr.error(
+        formatMessage(messages.errorOops),
+        formatMessage(messages.datesNotAvailable)
+      );
+    }
+  };
+
+  handlePayment(e) {
+    let paymentType = e.target.value;
+
+    if (paymentType == 4) {
+      this.setState({ paymentStatus: 4 });
+    } else if (paymentType == 3) {
+      this.setState({ paymentStatus: 3 });
+    } else if (paymentType == 2) {
+      this.setState({ paymentStatus: 2 });
+    } else {
+      this.setState({ paymentStatus: 1 });
+    }
+  }
+
+  render() {
+    const {
+      hostDisplayName,
+      houseRules,
+      hostPicture,
+      paymentLoading,
+      intl: { locale },
+    } = this.props;
+    const {
+      handleSubmit,
+      submitting,
+      error,
+      pristine,
+      paymentType,
+      hostProfileId,
+      hostJoined,
+    } = this.props;
+    const { listId } = this.props;
+    const { paymentStatus, load } = this.state;
+    const { formatMessage } = this.props.intl;
+    const {
+      data: { getCountries },
+    } = this.props;
+    const {
+      getAllPayments: { getPaymentMethods },
+    } = this.props;
+    let joinedDate =
+      hostJoined != null ? moment(hostJoined).format("MMM, YYYY") : "";
+    return (
+      <div className={cx("inputFocusColor")}>
+        <form onSubmit={handleSubmit(this.handleSubmit)}>
+          <h1 className={cx(cs.commonTitleText, cs.paddingBottom4)}>
+            <FormattedMessage {...messages.reviewandPay} />
+          </h1>
+          <h3 className={cx(s.titleText, cs.paddingBottom2)}>
+            1. <FormattedMessage {...messages.liscenseInfo} />
+          </h3>
+          <h4 className={cx(cs.commonContentText, cs.paddingBottom4)}>
+            <FormattedMessage {...messages.aboutLiscenseContent} />
+          </h4>
+          <DriverInfo />
+          <hr className={s.horizondalLine} />
+          <h5 className={cx(s.titleText, cs.paddingBottom2)}>
+            2. <FormattedMessage {...messages.aboutYourTrip} />
+          </h5>
+          <h5 className={cx(cs.commonContentText, cs.paddingBottom4)}>
+            <FormattedMessage {...messages.sayHello} />
+          </h5>
+          <div className={cx(s.avatarImageGrid, cs.spaceBottom4)}>
+            <Avatar
+              source={hostPicture}
+              type={"small"}
+              height={80}
+              width={80}
+              title={hostDisplayName}
+              className={cx(cs.profileAvatarLink, cs.profileAvatarLinkPayment)}
+              withLink
+              linkClassName={cs.displayinlineBlock}
+              profileId={hostProfileId}
+            />
+            <div className={cx(s.textSection, "viewListingTextSectionRTL")}>
+              <a
+                href={"/users/show/" + hostProfileId}
+                target={"_blank"}
+                className={cx(
+                  cs.commonSubTitleText,
+                  cs.siteTextColor,
+                  cs.fontWeightBold
+                )}
+              >
+                {formatMessage(messages.hostedBy)}{" "}
+                <span className={cs.siteLinkColor}>{hostDisplayName}</span>
+              </a>
+              <h4
+                className={cx(
+                  cs.commonContentText,
+                  cs.fontWeightNormal,
+                  cs.paddingTop1
+                )}
+              >
+                {formatMessage(messages.joinedIn)} {joinedDate}
+              </h4>
+            </div>
+          </div>
+          <Field
+            name="message"
+            component={this.renderFormControlTextArea}
+            label={formatMessage(messages.descriptionInfo)}
+            className={cx(cs.formControlInput, "commonInputPaddingRTL")}
+          />
+          <hr className={s.horizondalLine} />
+          {houseRules.length > 0 && (
+            <>
+              <HouseRules
+                hostDisplayName={hostDisplayName}
+                houseRules={houseRules}
+              />
+              <hr className={s.horizondalLine} />
+            </>
+          )}
+          <div>
+            <h5 className={cx(s.titleText, cs.paddingBottom2)}>
+              4. <FormattedMessage {...messages.payment} />
+            </h5>
+            {getPaymentMethods && getPaymentMethods.length > 1 && (
+              <>
+                <h6 className={cx(cs.commonContentText, cs.paddingBottom4)}>
+                  <FormattedMessage {...messages.paymentText} />
+                </h6>
+                {/* <label>
+                  <FormattedMessage {...messages.PaymentmethodText} />
+                </label>
+                <Field
+                  name="paymentType"
+                  type="text"
+                  className={cs.formControlSelect}
+                  component={this.renderFormControlSelect}
+                  onChange={(e) => this.handlePayment(e)}
+                >
+                  <option value={1}>{formatMessage(messages.payPal)}</option>
+                  <option value={2}>
+                    {formatMessage(messages.creditCard)}
+                  </option>
+                  <option value={3}>
+                    {formatMessage(messages.opnPayments)}
+                  </option>
+                  <option value={4}>Google Pay</option>
+                </Field> */}
+              </>
+            )}
+            {getPaymentMethods && getPaymentMethods.length == 1 && (
+              <>
+                <label className="textAlignRightRTL">
+                  {paymentStatus == 2
+                    ? formatMessage(messages.opnPaymentContent)
+                    : formatMessage(messages.paypal)}
+                </label>
+              </>
+            )}
+
+            {/* {paymentStatus == 3 && (
+              <> */}
+            <div className={s.omisePaymentForm}>
+              {/* <Field name="paymentMethod" component={}/> */}
+              <OpnPaymentsCard />
+            </div>
+            {/* </>
+            )} */}
+            {/* {paymentStatus == 4 && (
+              <>
+                <div className={s.omisePaymentForm}>
+                  <GooglePayButton
+                    style={{width: "100%"}}
+                    environment="TEST"
+                    buttonSizeMode="fill"
+                    paymentRequest={{
+                      apiVersion: 2,
+                      apiVersionMinor: 0,
+                      allowedPaymentMethods: [
+                        {
+                          type: "CARD",
+                          parameters: {
+                            allowedAuthMethods: ["PAN_ONLY", "CRYPTOGRAM_3DS"],
+                            allowedCardNetworks: ["MASTERCARD", "VISA"],
+                          },
+                          tokenizationSpecification: {
+                            type: "PAYMENT_GATEWAY",
+                            parameters: {
+                              gateway: "example",
+                              gatewayMerchantId: "exampleGatewayMerchantId",
+                            },
+                          },
+                        },
+                      ],
+                      merchantInfo: {
+                        merchantId: "12345678901234567890",
+                        merchantName: "Demo Merchant",
+                      },
+                      transactionInfo: {
+                        totalPriceStatus: "FINAL",
+                        totalPriceLabel: "Total",
+                        totalPrice: "100.00",
+                        currencyCode: "USD",
+                        countryCode: "US",
+                      },
+                    }}
+                    onLoadPaymentData={(paymentRequest) => {
+                      console.log("load payment data", paymentRequest);
+                    }}
+                  />
+                </div>
+              </>
+            )} */}
+            {/* {paymentStatus == 2 &&
+              (!load ? (
+                <Loader />
+              ) : (
+                <>
+                  <div className={cx("placeHolderFont", s.cardSection)}>
+                    <>
+                      <label>
+                        <FormattedMessage {...messages.paymentCardNumber} />
+                      </label>
+                      <CardNumberElement
+                        {...createOptions(isRTL(locale))}
+                        placeholder="4242 4242 4242 4242"
+                        className={cx(
+                          s.cardNumberSection,
+                          s.cardNumberSectionOne,
+                          "cardNumberRtl"
+                        )}
+                      />
+                    </>
+                    <div className={s.dateFiledGrid}>
+                      <div>
+                        <label>
+                          <FormattedMessage {...messages.cardExpires} />
+                        </label>
+                        <CardExpiryElement
+                          placeholder="MM / YY"
+                          {...createOptions(isRTL(locale))}
+                          className={cx(
+                            s.cardNumberSectionTwo,
+                            s.cardNumberSection,
+                            "cardNumberRtl"
+                          )}
+                        />
+                      </div>
+                      <div className={cx(s.datePadding, s.cvvNoPadding)}>
+                        <label>
+                          <FormattedMessage {...messages.cvv} />
+                        </label>
+                        <CardCvcElement
+                          placeholder="_ _ _"
+                          {...createOptions(isRTL(locale))}
+                          className={cx(
+                            s.cardNumberSectionThree,
+                            s.cardNumberSection,
+                            "cardNumberRtl"
+                          )}
+                        />
+                      </div>
+                      <div>
+                        <label>
+                          <FormattedMessage {...messages.zipcode} />
+                        </label>
+                        <div
+                          className={cx(
+                            s.cardNumberSectionFour,
+                            "RTLcardNumberSectionFour"
+                          )}
+                        >
+                          <Field
+                            name="zipcode"
+                            component={this.renderFormControl}
+                            className={cx(
+                              s.cardNumberSection,
+                              "cardNumberRtlTwo",
+                              cs.formControlInput
+                            )}
+                            placeholder={formatMessage(messages.zipcode)}
+                            maxLength={30}
+                          />
+                        </div>
+                      </div>
+                    </div>
+                    <div className={cx(s.tableFlex, s.flexWrap)}>
+                      <img src={imageOne} className={s.stripeImg} />
+                      <img src={imageTwo} className={s.stripeImg} />
+                    </div>
+                  </div>
+                </>
+              ))}
+            {paymentStatus == 1 && (
+              <>
+                <Field
+                  name="paymentCurrency"
+                  disabled={paymentType == 2}
+                  component={this.renderFormControlSelect}
+                  className={cs.formControlSelect}
+                >
+                  <option value="">
+                    {formatMessage(messages.chooseCurrency)}
+                  </option>
+                  {this.renderpaymentCurrencies()}
+                </Field>
+                <p className={cx(cs.commonContentText, cs.paddingBottom4)}>
+                  <FormattedMessage {...messages.loginInfo} />
+                </p>
+              </>
+            )} */}
+            <div className={s.payNowFlex}>
+              <div className={cx(s.cancelBtn, "RTLcancelBtn")}>
+                {!paymentLoading && (
+                  <>
+                    <Link
+                      to={"/cars/" + listId}
+                      className={cx(
+                        cs.btnPrimaryBorder,
+                        cs.displayinlineBlock,
+                        cs.spaceTop5
+                      )}
+                      onClick={this.handleClick}
+                    >
+                      <FormattedMessage {...messages.cancel} />
+                    </Link>
+                  </>
+                )}
+                {paymentLoading && (
+                  <>
+                    <a
+                      href="javascript:void(0)"
+                      className={cx(
+                        cs.btnPrimaryBorder,
+                        cs.displayinlineBlock,
+                        cs.spaceTop5
+                      )}
+                    >
+                      <FormattedMessage {...messages.cancel} />
+                    </a>
+                  </>
+                )}
+              </div>
+              <Loader
+                type={"button"}
+                buttonType={"submit"}
+                className={cx(cs.btnPrimary, cs.spaceTop5, "arButtonLoader")}
+                disabled={submitting || error}
+                show={paymentLoading}
+                label={formatMessage(messages.payNow)}
+              />
+            </div>
+          </div>
+        </form>
+      </div>
+    );
+  }
+}
+
+PaymentForm = reduxForm({
+  form: "PaymentForm", // a unique name for this form
+  validate,
+})(PaymentForm);
+
+// Decorate with connect to read form values
+const selector = formValueSelector("PaymentForm"); // <-- same as form name
+
+const mapState = (state) => ({
+  paymentCurrencyList: state.currency.availableCurrencies,
+  paymentLoading: state.book.paymentLoading,
+  paymentType: selector(state, "paymentType"),
+  rates: state.currency.rates,
+  currentCurrency: state.currency.to ? state.currency.to : state.currency.base,
+  baseCurrency: state.currency.base,
+});
+
+const mapDispatch = {
+  processCardAction,
+  change,
+};
+
+export default compose(
+  injectIntl,
+  withStyles(s, cs),
+  connect(mapState, mapDispatch),
+  graphql(
+    gql`
+      query getCountries {
+        getCountries {
+          id
+          countryCode
+          countryName
+          isEnable
+          dialCode
+        }
+      }
+    `,
+    { options: { ssr: false } }
+  ),
+  graphql(
+    gql`
+      query getPaymentMethods {
+        getPaymentMethods {
+          id
+          name
+          isEnable
+          paymentType
+          paymentName
+          status
+        }
+      }
+    `,
+    { name: "getAllPayments" },
+    { options: { ssr: false } }
+  )
+)(PaymentForm);
