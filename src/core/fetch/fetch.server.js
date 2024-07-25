@@ -13,7 +13,7 @@ function localUrl(url) {
     return url;
   }
 
-  return `https://octal-nodejs-959e0f23ca0e.herokuapp.com/${url}`;
+  return `http://localhost:3000${url}`;
   // return `https://www.motorentals.co${url}`;
 }
 
