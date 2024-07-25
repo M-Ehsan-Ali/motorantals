@@ -1,18 +1,18 @@
-import React, { Component } from "react";
 import PropTypes from "prop-types";
+import React, { Component } from "react";
 // Translation
-import { injectIntl, FormattedMessage } from "react-intl";
-import withStyles from "isomorphic-style-loader/lib/withStyles";
-import s from "./HomeType.css";
-import cs from "../../../commonStyle.css";
-import { Button, Collapse } from "react-bootstrap";
 import cx from "classnames";
+import withStyles from "isomorphic-style-loader/lib/withStyles";
+import { Button, Collapse } from "react-bootstrap";
+import { FormattedMessage, injectIntl } from "react-intl";
+import cs from "../../../commonStyle.css";
+import s from "./HomeType.css";
 // Redux Form
 import {
-  Field,
-  reduxForm,
-  formValueSelector,
   change,
+  Field,
+  formValueSelector,
+  reduxForm,
   submit as submitForm,
 } from "redux-form";
 // Redux
@@ -20,14 +20,14 @@ import { connect } from "react-redux";
 // Locale
 import messages from "../../../../locale/messages";
 // Submit
-import submit from "../../SearchForm/submit";
 import CustomCheckbox from "../../../CustomCheckbox";
+import submit from "../../SearchForm/submit";
 //Image
-import typeIcon from "/public/siteImages/steering.svg";
-import downIcon from "/public/SiteIcons/Show-down-arrow.svg";
-import upIcon from "/public/SiteIcons/Show-up-arrow.svg";
 import ApolloClient from "apollo-client";
 import { gql } from "react-apollo";
+import downIcon from "/public/SiteIcons/Show-down-arrow.svg";
+import upIcon from "/public/SiteIcons/Show-up-arrow.svg";
+import typeIcon from "/public/siteImages/steering.svg";
 class HomeType extends Component {
   static propTypes = {
     className: PropTypes.any,
@@ -105,7 +105,7 @@ class HomeType extends Component {
     const ids = [...settingsIds, ...descriptionIds];
 
     const client = new ApolloClient({
-      uri: "http://localhost:3001/graphql",
+      uri: "https://octal-nodejs-959e0f23ca0e.herokuapp.com/graphql",
     });
 
     const GET_TRANSLATIONS = gql`
@@ -209,11 +209,10 @@ class HomeType extends Component {
               }
             );
 
-            const translatedDescriptionItem = translatedItems.getTranslations.find(
-              (item) => {
+            const translatedDescriptionItem =
+              translatedItems.getTranslations.find((item) => {
                 return item.id === descriptionKey;
-              }
-            );
+              });
 
             let splitLineContent = translatedDescriptionItem
               ? translatedDescriptionItem.value.split("\n")
@@ -221,7 +220,7 @@ class HomeType extends Component {
 
             let newSplitLineContent =
               splitLineContent &&
-              splitLineContent.filter(function(el) {
+              splitLineContent.filter(function (el) {
                 return el;
               });
 
@@ -295,17 +294,15 @@ class HomeType extends Component {
                 const titleKey = `settings.${option.id}.${locale}`;
                 const descriptionKey = `settings.description.${option.id}.${locale}`;
 
-                const translatedTitleItem = translatedItems.getTranslations.find(
-                  (item) => {
+                const translatedTitleItem =
+                  translatedItems.getTranslations.find((item) => {
                     return item.id === titleKey;
-                  }
-                );
+                  });
 
-                const translatedDescriptionItem = translatedItems.getTranslations.find(
-                  (item) => {
+                const translatedDescriptionItem =
+                  translatedItems.getTranslations.find((item) => {
                     return item.id === descriptionKey;
-                  }
-                );
+                  });
 
                 let splitLineContent = translatedDescriptionItem
                   ? translatedDescriptionItem.value.split("\n")
@@ -314,7 +311,7 @@ class HomeType extends Component {
 
                 let newSplitLineContent =
                   splitLineContent &&
-                  splitLineContent.filter(function(el) {
+                  splitLineContent.filter(function (el) {
                     return el;
                   });
 

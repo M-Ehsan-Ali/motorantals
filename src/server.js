@@ -129,6 +129,7 @@ app.use(
       "http://localhost:3000",
       "https://www.motorentals.co",
       "https://motorentals.co",
+      "https://octal-nodejs-959e0f23ca0e.herokuapp.com/",
     ],
     credentials: true,
   })

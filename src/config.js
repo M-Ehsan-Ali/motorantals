@@ -5,7 +5,7 @@ require("dotenv").config();
 
 export const port = process.env.PORT || 3000;
 export const host = process.env.WEBSITE_HOSTNAME || `localhost:${port}`;
-export const url = "http://localhost:3001";
+export const url = "https://octal-nodejs-959e0f23ca0e.herokuapp.com/";
 export const sitename = "Your Website Name";
 
 // default locale is the first one
