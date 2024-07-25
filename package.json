@@ -2,7 +2,6 @@
   "name": "rentall-cars",
   "version": "3.0",
   "private": true,
-  "type": "module",
   "engines": {
     "node": ">=10",
     "npm": ">=5.10"
@@ -24,7 +23,6 @@
     "async-sema": "^3.1.0",
     "aws-sdk": "^2.1503.0",
     "axios": "^0.21.1",
-    "babel-cli": "^6.26.0",
     "babel-polyfill": "^7.0.0-beta.3",
     "babel-preset-react": "^7.0.0-beta.3",
     "bcrypt": "^5.0.1",
@@ -143,8 +141,8 @@
     "zen-observable-ts": "^1.1.0"
   },
   "devDependencies": {
-    "@babel/core": "^7.24.9",
-    "@babel/node": "^7.24.8",
+    "@babel/core": "^7.0.0",
+    "@babel/node": "^7.0.0",
     "@babel/plugin-proposal-class-properties": "^7.0.0",
     "@babel/plugin-proposal-decorators": "^7.0.0",
     "@babel/plugin-proposal-export-namespace-from": "^7.0.0",
@@ -156,7 +154,7 @@
     "@babel/plugin-syntax-import-meta": "^7.0.0",
     "@babel/plugin-transform-react-constant-elements": "^7.0.0-beta.42",
     "@babel/plugin-transform-react-inline-elements": "^7.0.0-beta.42",
-    "@babel/preset-env": "^7.24.8",
+    "@babel/preset-env": "^7.18.9",
     "@babel/preset-flow": "^7.0.0",
     "@babel/preset-react": "7",
     "@babel/register": "^7.0.0",

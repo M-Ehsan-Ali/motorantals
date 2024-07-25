@@ -11,7 +11,7 @@ module.exports = {
       },
     ],
     "@babel/preset-flow",
-    "@babel/preset-react",    
+    "@babel/preset-react",
   ],
   ignore: ["node_modules", "build"],
   plugins: [
@@ -19,7 +19,6 @@ module.exports = {
     "@babel/plugin-syntax-import-meta",
     "@babel/plugin-proposal-class-properties",
     "@babel/plugin-proposal-json-strings",
-    "@babel/plugin-transform-modules-commonjs"
     [
       "@babel/plugin-proposal-decorators",
       {
