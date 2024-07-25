@@ -33,7 +33,7 @@ import configureStore from "./store/configureStore";
 import { loadAccount } from "./actions/account";
 import { setLocale } from "./actions/intl";
 
-import { auth, locales, port } from "./config";
+import { auth, locales } from "./config";
 
 // Social Media Authentication
 import facebookAuth from "./core/auth/facebook";
@@ -493,8 +493,10 @@ models
   .sync()
   .catch((err) => console.error(err.stack))
   .then(() => {
-    app.listen(port, () => {
-      console.log(`The server is running at http://localhost:${port}/`);
+    app.listen(process.env.PORT, () => {
+      console.log(
+        `The server is running at http://localhost:${process.env.PORT}/`
+      );
     });
   });
 /* eslint-enable no-console */
