@@ -141,8 +141,8 @@
     "zen-observable-ts": "^1.1.0"
   },
   "devDependencies": {
-    "@babel/core": "^7.0.0",
-    "@babel/node": "^7.0.0",
+    "@babel/core": "^7.24.9",
+    "@babel/node": "^7.24.8",
     "@babel/plugin-proposal-class-properties": "^7.0.0",
     "@babel/plugin-proposal-decorators": "^7.0.0",
     "@babel/plugin-proposal-export-namespace-from": "^7.0.0",
@@ -154,7 +154,7 @@
     "@babel/plugin-syntax-import-meta": "^7.0.0",
     "@babel/plugin-transform-react-constant-elements": "^7.0.0-beta.42",
     "@babel/plugin-transform-react-inline-elements": "^7.0.0-beta.42",
-    "@babel/preset-env": "^7.18.9",
+    "@babel/preset-env": "^7.24.8",
     "@babel/preset-flow": "^7.0.0",
     "@babel/preset-react": "7",
     "@babel/register": "^7.0.0",
