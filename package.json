@@ -2,6 +2,7 @@
   "name": "rentall-cars",
   "version": "3.0",
   "private": true,
+  "type": "module",
   "engines": {
     "node": ">=10",
     "npm": ">=5.10"
